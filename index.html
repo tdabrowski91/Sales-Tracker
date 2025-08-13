@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sales & Activity Dashboard</title>
+
+<!-- PWA meta -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1115">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Sales Dash">
+
+<style>
+  :root{
+    --bg:#0f1115; --panel:#151923; --panel-2:#1b2030; --text:#e8ecf1; --muted:#9aa4b2;
+    --accent:#7aa2f7; --ok:#9cdcfe; --warn:#ffd700; --bad:#ff6b6b; --good:#98fb98; --grid:#2a3142; --card:#111521;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji;background:linear-gradient(180deg,var(--bg),#0b0d12 60%);color:var(--text)}
+  header{position:sticky;top:0;z-index:20;backdrop-filter:saturate(180%) blur(10px);background:rgba(10,12,18,.8);border-bottom:1px solid var(--grid);padding:14px 18px;display:flex;gap:14px;align-items:center;justify-content:space-between}
+  .brand{font-size:18px;letter-spacing:.4px;font-weight:600}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{padding:8px 12px;border:1px solid var(--grid);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer;user-select:none;font-size:14px}
+  .tab.active{background:var(--panel-2);border-color:#32405a}
+  main{padding:18px;max-width:1300px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .card{grid-column:span 12;background:var(--panel);border:1px solid var(--grid);border-radius:14px;padding:14px}
+  .card h3{margin:6px 0 12px 0;font-size:16px;color:#d4dbeb}
+  .muted{color:var(--muted);font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  input,select,button,textarea{background:var(--card);color:var(--text);border:1px solid var(--grid);border-radius:10px;padding:10px 12px;font-size:14px}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+  button{cursor:pointer}
+  .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--grid);font-size:12px;background:var(--panel-2)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:10px;border-bottom:1px solid var(--grid);text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  tr:hover td{background:#111827}
+  .kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .kpi .box{background:var(--panel-2);border:1px solid var(--grid);border-radius:12px;padding:12px}
+  .kpi .big{font-size:24px;font-weight:700}
+  .progress{width:100%;height:10px;background:#0d1220;border-radius:999px;border:1px solid var(--grid);overflow:hidden}
+  .progress>span{display:block;height:100%}
+  .right{margin-left:auto}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:980px){.kpi{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
+  canvas{width:100%;height:320px}
+  .tag{font-size:11px;padding:4px 8px;border-radius:999px;background:#0e1426;border:1px solid var(--grid);color:#b8c2d7}
+  .small{font-size:11px;color:#98a3b8}
+  .warnbar{display:none;padding:10px 14px;background:#1f1300;border-bottom:1px solid #5a3d00;color:#ffdca8}
+  .warnbar b{color:#ffc46b}
+</style>
+</head>
+<body>
+<div id="warn" class="warnbar">⚠️ <b>Heads up:</b> If buttons don’t work, you’re viewing in a blocked preview. Open directly in your browser, or deploy over HTTPS to install.</div>
+<noscript><div class="warnbar" style="display:block">⚠️ JavaScript is disabled. Enable it to use the dashboard.</div></noscript>
+
+<header>
+  <div class="brand">🚗 Sales & Activity Dashboard</div>
+  <div class="tabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="activities">Activities</div>
+    <div class="tab" data-tab="goals">Goals & Trends</div>
+    <div class="tab" data-tab="forecast">Forecast</div>
+    <div class="tab" data-tab="data">Data</div>
+    <div class="tab" data-tab="about">Help</div>
+  </div>
+</header>
+
+<main>
+  <section class="view" id="overview">
+    <div class="grid">
+      <div class="card">
+        <div class="row" style="align-items:center">
+          <h3 style="margin-right:10px">Filters</h3>
+          <select id="rangeSelect">
+            <option value="MTD">This Month</option>
+            <option value="QTD">This Quarter</option>
+            <option value="YTD">Year to Date</option>
+            <option value="LAST30">Last 30 Days</option>
+            <option value="ALL">All Time</option>
+            <option value="CUSTOM">Custom Range…</option>
+          </select>
+          <input id="fromDate" type="date" style="display:none">
+          <input id="toDate" type="date" style="display:none">
+          <span class="right tag" id="recordsTag">0 records</span>
+        </div>
+        <div class="kpi" id="kpiWrap"></div>
+        <div class="split" style="margin-top:12px">
+          <div class="card"><h3>Activity Trend</h3><canvas id="trendChart"></canvas></div>
+          <div class="card"><h3>Funnel & Conversion</h3><canvas id="funnelChart"></canvas><div class="row small" id="convRates" style="margin-top:8px"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="activities" style="display:none">
+    <div class="grid">
+      <div class="card">
+        <h3>Quick Add Activity</h3>
+        <div class="row">
+          <input type="date" id="actDate">
+          <input type="number" id="calls" placeholder="Phone Calls">
+          <input type="number" id="appts" placeholder="Appointments Set">
+          <input type="number" id="demos" placeholder="Demo Drives">
+          <input type="number" id="numbers" placeholder="Numbers Presented">
+          <input type="number" id="sales" placeholder="Sales">
+          <input type="number" id="revenue" placeholder="Gross / Commission (optional)" step="0.01">
+          <button id="addBtn">Add</button>
+          <button id="seedBtn" class="pill">Load Sample Data</button>
+          <span class="right small">Tip: all fields treat blanks as 0.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Activity Log</h3>
+        <div class="row" style="margin-bottom:8px">
+          <button class="pill" id="exportJson">Export JSON</button>
+          <button class="pill" id="exportCsv">Export CSV</button>
+          <input type="file" id="importFile" accept=".json,.csv" class="right">
+        </div>
+        <div style="overflow:auto; max-height:55vh; border:1px solid var(--grid); border-radius:12px">
+          <table id="dataTable">
+            <thead>
+              <tr><th>Date</th><th>Calls</th><th>Appts</th><th>Demos</th><th>Numbers</th><th>Sales</th><th>Revenue</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="muted">Click a cell to edit. Changes auto-save locally.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="goals" style="display:none">
+    <div class="grid">
+      <div class="card">
+        <h3>Set Goals</h3>
+        <div class="row">
+          <select id="goalScope"><option value="monthly">Monthly Goals</option><option value="quarterly">Quarterly Goals</option><option value="yearly">Yearly Goals</option></select>
+          <input type="number" id="goal_calls" placeholder="Calls">
+          <input type="number" id="goal_appts" placeholder="Appts">
+          <input type="number" id="goal_demos" placeholder="Demos">
+          <input type="number" id="goal_numbers" placeholder="Numbers">
+          <input type="number" id="goal_sales" placeholder="Sales">
+          <input type="number" id="goal_revenue" placeholder="Revenue">
+          <button id="saveGoals">Save Goals</button>
+          <span class="right small">Goals are scope-specific and auto-apply to the current period.</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Progress vs Goal</h3>
+        <div class="grid" id="goalsGrid" style="grid-template-columns: repeat(12,1fr); gap:12px"></div>
+      </div>
+      <div class="split">
+        <div class="card"><h3>YoY Comparison (Sales)</h3><canvas id="yoySales"></canvas></div>
+        <div class="card"><h3>Pace to Goal</h3><canvas id="paceChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="forecast" style="display:none">
+    <div class="grid">
+      <div class="card">
+        <h3>Forecast Settings</h3>
+        <div class="row">
+          <select id="fc_method"><option value="runrate">Run Rate (current pace)</option><option value="linear">Linear Trend (least squares)</option></select>
+          <select id="fc_target"><option value="sales">Forecast Sales</option><option value="revenue">Forecast Revenue</option></select>
+          <select id="fc_period"><option value="month">This Month</option><option value="quarter">This Quarter</option><option value="year">This Year</option></select>
+          <button id="runForecast">Run Forecast</button>
+          <span id="forecastSummary" class="right tag"></span>
+        </div>
+      </div>
+      <div class="split">
+        <div class="card"><h3>Forecast vs Goal</h3><canvas id="forecastChart"></canvas></div>
+        <div class="card"><h3>Assumptions</h3><div class="small" id="assumptions"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="data" style="display:none">
+    <div class="grid">
+      <div class="card">
+        <h3>Data Dictionary</h3>
+        <ul class="small">
+          <li><b>Calls</b>: outbound phone calls you placed.</li>
+          <li><b>Appts</b>: appointments set from calls or other outreach.</li>
+          <li><b>Demos</b>: demo drives completed.</li>
+          <li><b>Numbers</b>: formal price presentations made.</li>
+          <li><b>Sales</b>: closed deals (units).</li>
+          <li><b>Revenue</b>: your gross / commission for that day (optional).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Backup / Restore</h3>
+        <div class="row">
+          <button class="pill" id="backupAll">Download Backup</button>
+          <input type="file" id="restoreAll" accept=".json" class="right">
+        </div>
+        <div class="muted">Backups include data and goals stored in your browser.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="about" style="display:none">
+    <div class="card">
+      <h3>How to Use</h3>
+      <ol class="small">
+        <li>Open <b>Activities</b> → click <b>Load Sample Data</b> or add your own daily entries.</li>
+        <li>Set <b>Monthly/Quarterly/Yearly goals</b> in <b>Goals & Trends</b>.</li>
+        <li>Use <b>Overview</b> for KPIs, trends, and conversion rates with date filters.</li>
+        <li>Run <b>Forecast</b> to project Sales or Revenue for the current period.</li>
+        <li>Export/Import via <b>Data</b> for backups or CSV/JSON.</li>
+      </ol>
+      <p class="small">No internet needed after first load. Data stores locally in your browser.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="small" style="padding:24px;color:#70839c;text-align:center">Built for Sawyer Chevrolet — minimal, clean, offline-capable dashboard (PWA).</footer>
+
+<script>
+// Detect iframe previews
+try{ if(window.top !== window.self){ document.getElementById('warn').style.display='block'; } }catch(e){ document.getElementById('warn').style.display='block'; }
+// Register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  });
+}
+</script>
+
+<!-- Minimal chart engine -->
+<script>
+!function(){function u(e,t){return e.map((e=>e[t]))}const y=(e,t)=>e.reduce(((e,t)=>e+t),0);
+window.SimpleCharts={line:function(ctx,labels,datasets){const dpr=window.devicePixelRatio||1,W=ctx.canvas.clientWidth,H=ctx.canvas.clientHeight;ctx.canvas.width=W*dpr;ctx.canvas.height=H*dpr;ctx.scale(dpr,dpr);const pad=40;ctx.clearRect(0,0,W,H);ctx.font="12px system-ui";ctx.fillStyle="#b9c2d0";ctx.strokeStyle="#2a3142";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,10);ctx.lineTo(pad,H-pad);ctx.lineTo(W-10,H-pad);ctx.stroke();const all=datasets.flatMap(ds=>ds.data),max=Math.max(1,Math.max.apply(null,all)),yTicks=5;for(let i=0;i<=yTicks;i++){const val=Math.round(max*i/yTicks),yPos=H-pad-(H-pad-20)*(i/yTicks);ctx.fillText(val.toString(),6,yPos+4);ctx.strokeStyle="#1f2636";ctx.beginPath();ctx.moveTo(pad,yPos);ctx.lineTo(W-10,yPos);ctx.stroke()}const step=Math.max(1,Math.floor(labels.length/8));labels.forEach((lab,i)=>{if(i%step===0){const x=pad+(W-pad-20)*(i/(labels.length-1||1));ctx.fillText(lab,x-10,H-12)}});const colors=["#b8c2d7","#9cdcfe","#98fb98","#ffd700","#ff6b6b","#7aa2f7"];datasets.forEach((ds,idx)=>{ctx.strokeStyle=colors[idx%colors.length];ctx.lineWidth=2;ctx.beginPath();ds.data.forEach((v,i)=>{const x=pad+(W-pad-20)*(i/(labels.length-1||1)),y=H-pad-(H-pad-20)*((v)/(max||1));if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke()})},bar:function(ctx,labels,data){const dpr=window.devicePixelRatio||1,W=ctx.canvas.clientWidth,H=ctx.canvas.clientHeight;ctx.canvas.width=W*dpr;ctx.canvas.height=H*dpr;ctx.scale(dpr,dpr);const pad=40;ctx.clearRect(0,0,W,H);ctx.font="12px system-ui";ctx.fillStyle="#b9c2d0";ctx.strokeStyle="#2a3142";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,10);ctx.lineTo(pad,H-pad);ctx.lineTo(W-10,H-pad);ctx.stroke();const max=Math.max(1,Math.max.apply(null,data)),yTicks=5;for(let i=0;i<=yTicks;i++){const val=Math.round(max*i/yTicks),yPos=H-pad-(H-pad-20)*(i/yTicks);ctx.fillText(val.toString(),6,yPos+4);ctx.strokeStyle="#1f2636";ctx.beginPath();ctx.MoveTo;ctx.moveTo(pad,yPos);ctx.lineTo(W-10,yPos);ctx.stroke()}const barW=(W-pad-30)/(data.length||1)*0.6;labels.forEach((lab,i)=>{const x=pad+(W-pad-20)*(i/(labels.length||1));ctx.fillStyle="#b9c2d0";ctx.fillText(lab,x-10,H-12);const y=H-pad-(H-pad-20)*((data[i])/(max||1));ctx.fillStyle="#9cdcfe";ctx.fillRect(x-barW/2,y,barW,H-pad-y)})}};}();
+</script>
+
+<script>
+/* Utilities */
+const fmt=new Intl.NumberFormat();const fmtCur=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+const daysInMonth=(y,m)=>new Date(y,m,0).getDate();const toISO=d=>(new Date(d)).toISOString().slice(0,10);const todayISO=toISO(new Date());
+function getQuarter(date){const d=new Date(date);return Math.floor(d.getMonth()/3)+1;}
+function startOf(type,d){const dd=new Date(d||new Date());if(type==='month'){return new Date(dd.getFullYear(),dd.getMonth(),1)}if(type==='quarter'){const q=Math.floor(dd.getMonth()/3)*3;return new Date(dd.getFullYear(),q,1)}if(type==='year'){return new Date(dd.getFullYear(),0,1)}return dd}
+function endOf(type,d){const dd=new Date(d||new Date());if(type==='month'){return new Date(dd.getFullYear(),dd.getMonth(),daysInMonth(dd.getFullYear(),dd.getMonth()+1))}if(type==='quarter'){const q=Math.floor(dd.getMonth()/3)*3;return new Date(dd.getFullYear(),q+3,0)}if(type==='year'){return new Date(dd.getFullYear(),11,31)}return dd}
+function parseNum(v){const n=Number(v);return isNaN(n)?0:n}
+
+/* Storage */
+const LS_KEY="sawyer_sales_data_v1", LS_GOALS="sawyer_sales_goals_v1";
+function loadData(){try{const raw=localStorage.getItem(LS_KEY);if(!raw) return [];const arr=JSON.parse(raw);return Array.isArray(arr)?arr:[]}catch(e){return []}}
+function saveData(arr){localStorage.setItem(LS_KEY,JSON.stringify(arr||[]))}
+function loadGoals(){try{const raw=localStorage.getItem(LS_GOALS);return raw?JSON.parse(raw):{}}catch(e){return {}}}
+function saveGoals(obj){localStorage.setItem(LS_GOALS,JSON.stringify(obj||{}))}
+
+/* State */
+let DATA=loadData();let GOALS=loadGoals();let FILTER={from:null,to:null,mode:'MTD'};
+
+/* Seed */
+function seed(){const start=new Date();start.setMonth(start.getMonth()-2);start.setDate(1);const arr=[];for(let i=0;i<80;i++){const d=new Date(start.getTime()+ i*24*3600*1000);if(d>new Date()) break;if(d.getDay()===0||d.getDay()===6) continue;const calls=Math.max(0,Math.round(10+8*Math.sin(i/5)+(Math.random()*6-3)));const appts=Math.max(0,Math.round(calls*0.25+(Math.random()*2-1)));const demos=Math.max(0,Math.round(appts*0.6+(Math.random()*2-1)));const numbers=Math.max(0,Math.round(demos*0.75+(Math.random()*2-1)));const sales=Math.max(0,Math.round(numbers*0.4+(Math.random()*1-0.3)));const revenue=sales*(500+Math.random()*700);arr.push({date:toISO(d),calls,appts,demos,numbers,sales,revenue:Math.round(revenue)})}DATA=arr;saveData(DATA);renderAll()}
+
+/* Rendering */
+function sumBy(arr,key){return arr.reduce((acc,row)=>acc+parseNum(row[key]),0)}
+function filterByRange(mode,from,to){let start,end;const now=new Date();switch(mode){case 'MTD':start=startOf('month',now);end=endOf('month',now);break;case 'QTD':start=startOf('quarter',now);end=endOf('quarter',now);break;case 'YTD':start=startOf('year',now);end=endOf('year',now);break;case 'LAST30':start=new Date(now.getTime()-29*24*3600*1000);end=now;break;case 'ALL':start=new Date('2000-01-01');end=now;break;case 'CUSTOM':start=new Date(from||'2000-01-01');end=new Date(to||now);break;}const sISO=toISO(start),eISO=toISO(end);return DATA.filter(r=>r.date>=sISO && r.date<=eISO).sort((a,b)=>a.date.localeCompare(b.date))}
+function kpiBox(title,value,sub){return `<div class="box"><div class="muted">${title}</div><div class="big">${value}</div><div class="small">${sub||""}</div></div>`}
+function renderOverview(){const range=filterByRange(FILTER.mode,FILTER.from,FILTER.to);document.getElementById('recordsTag').textContent=new Intl.NumberFormat().format(range.length)+" records";const sums={calls:sumBy(range,'calls'),appts:sumBy(range,'appts'),demos:sumBy(range,'demos'),numbers:sumBy(range,'numbers'),sales:sumBy(range,'sales'),revenue:sumBy(range,'revenue')};const kpi=document.getElementById('kpiWrap');const conv1=sums.calls?(sums.appts/sums.calls):0,const conv2=sums.appts?(sums.demos/sums.appts):0,const conv3=sums.demos?(sums.numbers/sums.demos):0,const conv4=sums.numbers?(sums.sales/sums.numbers):0;kpi.innerHTML=[kpiBox("Sales",fmt.format(sums.sales),"Revenue "+fmtCur.format(sums.revenue||0)),kpiBox("Calls",fmt.format(sums.calls),"Appts "+fmt.format(sums.appts)),kpiBox("Demos",fmt.format(sums.demos),"Numbers "+fmt.format(sums.numbers)),kpiBox("Close Rate",(conv4*100).toFixed(1)+"%","Sales/Numbers"),kpiBox("Appt→Demo",(conv2*100).toFixed(1)+"%","Demos/Appts")].join("");const labels=range.map(r=>r.date.slice(5));const ctx1=document.getElementById('trendChart').getContext('2d');SimpleCharts.line(ctx1,labels,[{label:"Calls",data:range.map(r=>r.calls)},{label:"Appts",data:range.map(r=>r.appts)},{label:"Demos",data:range.map(r=>r.demos)},{label:"Numbers",data:range.map(r=>r.numbers)},{label:"Sales",data:range.map(r=>r.sales)}]);const ctx2=document.getElementById('funnelChart').getContext('2d');SimpleCharts.bar(ctx2,["Calls","Appts","Demos","Numbers","Sales"],[sums.calls,sums.appts,sums.demos,sums.numbers,sums.sales]);document.getElementById('convRates').innerHTML=[`<span class="tag">Call→Appt: ${(conv1*100).toFixed(1)}%</span>`,`<span class="tag">Appt→Demo: ${(conv2*100).toFixed(1)}%</span>`,`<span class="tag">Demo→Numbers: ${(conv3*100).toFixed(1)}%</span>`,`<span class="tag">Numbers→Sale: ${(conv4*100).toFixed(1)}%</span>`].join(" ")}
+function getActiveGoals(scope,date){const yr=new Date(date||new Date()).getFullYear();const mo=new Date(date||new Date()).getMonth()+1;const key=scope==='monthly'?`${yr}-${String(mo).padStart(2,'0')}`:scope==='quarterly'?`${yr}-Q${getQuarter(date||new Date())}`:`${yr}`;return GOALS[scope]?.[key]||{calls:0,appts:0,demos:0,numbers:0,sales:0,revenue:0}}
+function renderGoals(){const scope=document.getElementById('goalScope').value;const rangeMode=scope==='monthly'?'MTD':scope==='quarterly'?'QTD':'YTD';const range=filterByRange(rangeMode);const sums={calls:sumBy(range,'calls'),appts:sumBy(range,'appts'),demos:sumBy(range,'demos'),numbers:sumBy(range,'numbers'),sales:sumBy(range,'sales'),revenue:sumBy(range,'revenue')};const goals=getActiveGoals(scope,new Date());const metrics=["calls","appts","demos","numbers","sales","revenue"];const grid=document.getElementById('goalsGrid');grid.innerHTML=metrics.map(m=>{const v=sums[m]||0,g=parseNum(goals[m])||0,pct=g?Math.min(100,Math.round(v*100/g)):0,left=Math.max(0,g-v);return `<div class="card" style="grid-column: span 4"><div class="row" style="align-items:center; justify-content:space-between"><div><div class="muted" style="text-transform:uppercase">${m}</div><div style="font-size:22px; font-weight:700">${m==='revenue'? fmtCur.format(v): fmt.format(v)}</div><div class="small">${fmt.format(left)} left of ${m==='revenue'? fmtCur.format(g): fmt.format(g)}</div></div><div class="tag">${pct}%</div></div><div class="progress" style="margin-top:10px"><span style="width:${pct}%; background:${pct>=100?'#98fb98':'#7aa2f7'}"></span></div></div>`}).join("");const now=new Date();const thisMonth=now.getMonth()+1,year=now.getFullYear();const thisMonthData=DATA.filter(r=> r.date.startsWith(`${year}-${String(thisMonth).padStart(2,'0')}`));const lastYearData=DATA.filter(r=> r.date.startsWith(`${year-1}-${String(thisMonth).padStart(2,'0')}`));const labels=Array.from(new Set([...thisMonthData,...lastYearData].map(r=>r.date.slice(8)))).sort((a,b)=>a-b);const byDay=(arr)=>labels.map(d=>(arr.find(x=>x.date.endsWith(`-${d}`))?.sales)||0).reduce((acc,cur,i)=>(acc[i]=(acc[i-1]||0)+cur,acc),[]);const ctx=document.getElementById('yoySales').getContext('2d');SimpleCharts.line(ctx,labels.map(d=>String(d)),[{label:"This Year",data:byDay(thisMonthData)},{label:"Last Year",data:byDay(lastYearData)}]);const goalSales=parseNum(goals.sales)||0;const days=daysInMonth(now.getFullYear(),now.getMonth()+1);const day=now.getDate();const targetByToday=goalSales*(day/days);const actualByToday=thisMonthData.reduce((a,r)=>a+r.sales,0);const ctx2=document.getElementById('paceChart').getContext('2d');SimpleCharts.bar(ctx2,["Target Pace","Actual"],[Math.round(targetByToday),actualByToday])}
+function renderForecast(){const method=document.getElementById('fc_method').value;const target=document.getElementById('fc_target').value;const period=document.getElementById('fc_period').value;const now=new Date();const start=period==='month'?startOf('month',now):period==='quarter'?startOf('quarter',now):startOf('year',now);const end=period==='month'?endOf('month',now):period==='quarter'?endOf('quarter',now):endOf('year',now);const sISO=toISO(start),eISO=toISO(end);const arr=DATA.filter(r=> r.date>=sISO&&r.date<=eISO).sort((a,b)=>a.date.localeCompare(b.date));const x=arr.map(r=> new Date(r.date).getTime());const y=arr.map(r=> parseNum(r[target]||0));const daysTotal=Math.round((end-start)/(24*3600*1000))+1;const daysElapsed=Math.max(1,Math.round((new Date()-start)/(24*3600*1000))+1);const actualToDate=y.reduce((a,b)=>a+b,0);let forecast=0,note="";if(method==='runrate'){const dailyAvg=actualToDate/daysElapsed;forecast=dailyAvg*daysTotal;note=`Run rate uses average per elapsed day (${dailyAvg.toFixed(2)} ${target}/day).`}else{if(x.length>=2){const t=x.map(v=>(v-x[0])/(24*3600*1000));const n=t.length;const sumT=t.reduce((a,b)=>a+b,0);const sumY=y.reduce((a,b)=>a+b,0);const sumTT=t.reduce((a,b)=>a+b*b,0);const sumTY=t.reduce((a,ti,i)=>a+ti*y[i],0);const b=(n*sumTY - sumT*sumY)/Math.max(1,(n*sumTT - sumT*sumT));const a=(sumY - b*sumT)/n;const tEnd=((end.getTime()-x[0])/(24*3600*1000));forecast=Math.max(0,a*(tEnd+1)+b*((tEnd+1)*tEnd/2));note=`Linear trend fits a line to daily ${target} and sums to period end.`}else{forecast=actualToDate;note="Insufficient data for linear trend; using actual to date."}}const goals=getActiveGoals(period==='month'?'monthly':period==='quarter'?'quarterly':'yearly',now);const goal=parseNum(goals[target])||0;const ctx=document.getElementById('forecastChart').getContext('2d');SimpleCharts.bar(ctx,["Goal","Forecast","Actual (to date)"],[goal,Math.round(forecast),Math.round(actualToDate)]);document.getElementById('forecastSummary').textContent=`${target.toUpperCase()} Forecast: ${target==='revenue'?fmtCur.format(forecast):fmt.format(Math.round(forecast))}`;document.getElementById('assumptions').innerText=[`Period: ${start.toDateString()} → ${end.toDateString()} (${daysElapsed}/${daysTotal} days elapsed)`,`Method: ${method==='runrate'?'Run Rate':'Linear Trend'}`,`Goal (${target}): ${target==='revenue'?fmtCur.format(goal):fmt.format(goal)}`,note].join('\n')}
+function renderTable(){const tbody=document.querySelector('#dataTable tbody');tbody.innerHTML="";const rows=DATA.slice().sort((a,b)=>a.date.localeCompare(b.date));for(const r of rows){const tr=document.createElement('tr');["date","calls","appts","demos","numbers","sales","revenue"].forEach((k,idx)=>{const td=document.createElement('td');td.textContent=(k==='revenue'&&r[k]!=null)?fmtCur.format(r[k]):r[k];td.contentEditable=(k!=='date');td.dataset.key=k;td.dataset.date=r.date;td.style.textAlign=idx===0?'left':'right';tr.appendChild(td)});const del=document.createElement('td');const btn=document.createElement('button');btn.textContent='Delete';btn.className='pill';btn.onclick=()=>{DATA=DATA.filter(x=>x!==r);saveData(DATA);renderAll()};del.appendChild(btn);tr.appendChild(del);tbody.appendChild(tr)}tbody.querySelectorAll('td[contenteditable="true"]').forEach(td=>{td.addEventListener('blur',e=>{const date=td.dataset.date;const key=td.dataset.key;const row=DATA.find(x=>x.date===date);if(!row) return;const raw=td.innerText.replace(/[^0-9\.\-]/g,'');row[key]=key==='revenue'?Math.round(parseFloat(raw||'0')):parseInt(raw||'0');saveData(DATA);renderAll()})})}
+
+/* Events */
+document.querySelectorAll('.tab').forEach(el=>{el.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');const id=el.dataset.tab;document.querySelectorAll('.view').forEach(v=>v.style.display='none');document.getElementById(id).style.display='block';if(id==='goals') renderGoals();if(id==='forecast') renderForecast();})});
+document.getElementById('rangeSelect').addEventListener('change',(e)=>{FILTER.mode=e.target.value;const show=FILTER.mode==='CUSTOM';document.getElementById('fromDate').style.display=show?'inline-block':'none';document.getElementById('toDate').style.display=show?'inline-block':'none';renderOverview()});
+document.getElementById('fromDate').addEventListener('change',e=>{FILTER.from=e.target.value;renderOverview()});
+document.getElementById('toDate').addEventListener('change',e=>{FILTER.to=e.target.value;renderOverview()});
+document.getElementById('addBtn').addEventListener('click',()=>{const r={date:document.getElementById('actDate').value||todayISO,calls:parseNum(document.getElementById('calls').value),appts:parseNum(document.getElementById('appts').value),demos:parseNum(document.getElementById('demos').value),numbers:parseNum(document.getElementById('numbers').value),sales:parseNum(document.getElementById('sales').value),revenue:Math.round(parseNum(document.getElementById('revenue').value))};const idx=DATA.findIndex(x=>x.date===r.date);if(idx>=0) DATA[idx]=r; else DATA.push(r);saveData(DATA);renderAll()});
+document.getElementById('seedBtn').addEventListener('click',seed);
+document.getElementById('exportJson').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sales_activities.json';a.click()});
+document.getElementById('exportCsv').addEventListener('click',()=>{const hdr=["date","calls","appts","demos","numbers","sales","revenue"];const rows=[hdr.join(',')].concat(DATA.map(r=> hdr.map(h=> r[h]??"").join(',')));const blob=new Blob([rows.join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sales_activities.csv';a.click()});
+document.getElementById('importFile').addEventListener('change',(e)=>{const file=e.target.files[0];if(!file) return;const reader=new FileReader();reader.onload=()=>{try{if(file.name.endsWith('.json')){const arr=JSON.parse(reader.result);if(Array.isArray(arr)) DATA=arr.map(x=>({...x,revenue:parseNum(x.revenue)}))}else{const lines=reader.result.split(/\r?\n/).filter(Boolean);const [h,...rest]=lines;const cols=h.split(',').map(s=>s.trim().toLowerCase());DATA=rest.map(line=>{const parts=line.split(',');const obj={};cols.forEach((c,i)=>obj[c]=parts[i]);obj.calls=parseNum(obj.calls);obj.appts=parseNum(obj.appts);obj.demos=parseNum(obj.demos);obj.numbers=parseNum(obj.numbers);obj.sales=parseNum(obj.sales);obj.revenue=Math.round(parseNum(obj.revenue));return obj})}saveData(DATA);renderAll()}catch(err){alert('Import failed: '+err.message)}};reader.readAsText(file)});
+document.getElementById('saveGoals').addEventListener('click',()=>{const scope=document.getElementById('goalScope').value;const now=new Date();const key=scope==='monthly'?`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`:scope==='quarterly'?`${now.getFullYear()}-Q${Math.floor(now.getMonth()/3)+1}`:`${now.getFullYear()}`;GOALS[scope]=GOALS[scope]||{};GOALS[scope][key]={calls:parseNum(document.getElementById('goal_calls').value),appts:parseNum(document.getElementById('goal_appts').value),demos:parseNum(document.getElementById('goal_demos').value),numbers:parseNum(document.getElementById('goal_numbers').value),sales:parseNum(document.getElementById('goal_sales').value),revenue:parseNum(document.getElementById('goal_revenue').value)};saveGoals(GOALS);alert('Goals saved for '+key);renderGoals()});
+document.getElementById('backupAll').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({DATA,GOALS},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='dashboard_backup.json';a.click()});
+document.getElementById('restoreAll').addEventListener('change',(e)=>{const file=e.target.files[0];if(!file) return;const reader=new FileReader();reader.onload=()=>{try{const obj=JSON.parse(reader.result);DATA=Array.isArray(obj.DATA)?obj.DATA:[];GOALS=obj.GOALS||{};saveData(DATA);saveGoals(GOALS);renderAll()}catch(err){alert('Restore failed: '+err.message)}};reader.readAsText(file)});
+document.getElementById('runForecast').addEventListener('click',renderForecast);
+
+/* Boot */
+function renderAll(){renderOverview();renderTable();if(document.querySelector('.tab.active').dataset.tab==='goals') renderGoals();if(document.querySelector('.tab.active').dataset.tab==='forecast') renderForecast()}
+renderAll();
+</script>
+</body>
+</html>
